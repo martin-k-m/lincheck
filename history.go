@@ -1,23 +1,17 @@
 // Package lincheck is a single-key linearizability checker and fault-injection
-// harness for external key-value systems.
+// harness for external key-value systems, depending on nothing but the
+// standard library.
 //
-// It is the checker from the quorum project, generalized so that it depends on
-// nothing but the standard library, plus the harness machinery needed to point
-// it at a real system running in real processes.
-//
-// Two properties of this package matter more than the search algorithm itself,
-// because both were bugs before they were features:
-//
-//  1. An operation whose outcome the client never learned is INDETERMINATE, not
-//     failed. See Op.InDoubt.
-//
-//  2. A harness that silently records less than it claims is worse than no
-//     harness. Nothing here truncates a history, and every run reports coverage
-//     numbers that a caller is expected to assert on. See Coverage.
+// Two properties matter more than the search algorithm, and both were bugs
+// before they were features: an operation whose outcome the client never
+// learned is INDETERMINATE, not failed (see Op.InDoubt), and nothing here
+// truncates a history or reports a verdict for a run that measured too little
+// (see Coverage). README.md has the rationale.
 package lincheck
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 )
@@ -67,20 +61,16 @@ type Op struct {
 	ResultValue []byte
 
 	// InDoubt marks an operation the client submitted but never learned the
-	// outcome of: it timed out, or the connection broke, and the request may
-	// still be sitting in the system waiting to commit. This is the ":info"
-	// case in Jepsen's vocabulary, and it is not an edge case: it is the
-	// normal fate of a write sent to a node that is about to be partitioned
-	// away, which is exactly what a fault-injected run produces on purpose.
+	// outcome of: it timed out or the connection broke, and it may still be
+	// sitting in the system waiting to commit. Jepsen's ":info" case, and the
+	// normal fate of a write to a node about to be partitioned away.
 	//
-	// An in-doubt operation is checked as OPTIONAL. A linearization may place
-	// it anywhere at or after its Call, or leave it out entirely, because both
-	// are things that could really have happened. Dropping such an operation
-	// instead is unsound in both directions: a write that timed out and then
-	// committed makes a later Get look impossible (a FALSE violation), and a
-	// write that timed out and then committed over a value can HIDE a genuine
-	// violation. Return is ignored for an in-doubt operation, since there was
-	// no return.
+	// Such an operation is checked as OPTIONAL: a linearization may place it
+	// anywhere at or after its Call, or leave it out, because both really
+	// could have happened. Dropping it instead is unsound in both directions.
+	// A write that timed out and then committed makes a later Get look
+	// impossible (a FALSE violation), and one that committed over a value can
+	// HIDE a genuine violation. Return is ignored when this is set.
 	InDoubt bool
 
 	// Err is the error the client saw, if any. Reporting only.
@@ -110,17 +100,15 @@ func (op Op) String() string {
 	}
 }
 
-// Recorder collects Ops from any number of concurrent callers, the shape a
-// chaos run's client goroutines naturally produce, and hands back a stable
-// snapshot once the run is over.
+// Recorder collects Ops from any number of concurrent callers and hands back a
+// stable snapshot once the run is over.
 type Recorder struct {
 	mu  sync.Mutex
 	ops []Op
 
-	// givenUp counts operations a client wanted to perform but never managed
-	// to even submit, because every node refused it for the whole retry
-	// window. These never enter the history, so without counting them a run
-	// that talked to nothing at all looks identical to a clean run.
+	// givenUp counts operations never submitted at all, because every node
+	// refused them for the whole retry window. They never enter the history,
+	// so without this count a run that talked to nothing looks clean.
 	givenUp int
 }
 
@@ -157,20 +145,14 @@ func (r *Recorder) GivenUp() int {
 }
 
 // FormatHistory renders a history in call order, one op per line, with
-// timestamps relative to the first call. This is the form a violation report
-// must be printable in: it has to be readable and it has to be complete.
+// timestamps relative to the first call.
 func FormatHistory(ops []Op) string {
 	if len(ops) == 0 {
 		return "(empty history)\n"
 	}
-	base := ops[0].Call
-	for _, op := range ops {
-		if op.Call.Before(base) {
-			base = op.Call
-		}
-	}
 	sorted := append([]Op(nil), ops...)
 	sortByCall(sorted)
+	base := sorted[0].Call
 	out := ""
 	for i, op := range sorted {
 		ret := "        n/a"
@@ -183,10 +165,8 @@ func FormatHistory(ops []Op) string {
 	return out
 }
 
+// sortByCall must be stable: ties are treated as concurrent everywhere else,
+// so their relative order has to stay as recorded.
 func sortByCall(ops []Op) {
-	for i := 1; i < len(ops); i++ {
-		for j := i; j > 0 && ops[j].Call.Before(ops[j-1].Call); j-- {
-			ops[j], ops[j-1] = ops[j-1], ops[j]
-		}
-	}
+	sort.SliceStable(ops, func(i, j int) bool { return ops[i].Call.Before(ops[j].Call) })
 }

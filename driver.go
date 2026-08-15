@@ -17,23 +17,16 @@ type Config struct {
 	Keys         []string
 
 	// ThinkTime is an upper bound on the random pause a client takes between
-	// operations. It is not padding. Two things depend on it:
-	//
-	// A schedule has to last long enough for the fault schedule to actually
-	// fire. Against a local etcd cluster, 60 operations complete in under
-	// 100ms, which is over before the first fault is injected; the coverage
-	// floor catches that and reports a harness failure, but the fix is here.
-	//
-	// It also controls how dense the history is. Operations that all overlap
-	// each other carry almost no real-time ordering information, which both
-	// weakens the check and makes proving a violation exponentially expensive.
-	// Spacing clients out produces a history with real order in it.
+	// operations, and it is not padding. Too small and the schedule finishes
+	// before the first fault fires (60 ops against a local etcd cluster take
+	// under 100ms). It also spaces the history out: operations that all
+	// overlap carry almost no real-time ordering information, which weakens
+	// the check and makes proving a violation exponentially expensive.
 	ThinkTime time.Duration
 
-	// ReadRatio is the fraction of operations that are reads. It matters more
-	// than it looks. A history dominated by writes hides lost writes: the next
-	// write overwrites the key within milliseconds, so no read ever observes
-	// the stale value and there is nothing for the checker to catch. Reads are
+	// ReadRatio is the fraction of operations that are reads. A history
+	// dominated by writes hides lost writes: the next write overwrites the key
+	// within milliseconds, so no read ever observes the stale value. Reads are
 	// what turn a lost write into evidence.
 	ReadRatio float64
 
@@ -42,13 +35,11 @@ type Config struct {
 	OpTimeout time.Duration
 
 	// RetryWindow is how long a client keeps retrying an operation that every
-	// node definitively REJECTED before giving up on it entirely.
-	//
-	// This exists because of a real harness bug. During a leaderless window
-	// every node rejects instantly, so a client that does not retry burns its
-	// whole operation budget in milliseconds and records almost nothing, while
-	// the run still reports "pass". A near-empty history is not a pass, and
-	// this window plus the Coverage assertions are the two halves of the fix.
+	// node definitively REJECTED before giving up. During a leaderless window
+	// every node rejects instantly, so without retrying a client burns its
+	// whole budget in milliseconds and records almost nothing while the run
+	// still reads as "pass"; this and the Coverage floor are the two halves of
+	// the fix.
 	RetryWindow  time.Duration
 	RetryBackoff time.Duration
 
@@ -90,12 +81,10 @@ func DefaultConfig(seed int64) Config {
 	}
 }
 
-// Coverage is what the run actually managed to exercise. It is both the
-// measured result and, via Config.Require, the floor a run must clear.
-//
-// The point of this type: a checker that silently checks nothing is worse than
-// no checker. A history of three operations trivially linearizes. Without
-// these numbers, such a run is indistinguishable from a real one.
+// Coverage is what the run actually managed to exercise: both the measured
+// result and, via Config.Require, the floor a run must clear. A history of
+// three operations trivially linearizes, and without these numbers such a run
+// is indistinguishable from a real one.
 type Coverage struct {
 	TotalOps     int
 	CompletedOps int
@@ -105,10 +94,9 @@ type Coverage struct {
 	CompletedGets int
 	CompletedPuts int
 
-	// ReadsOfRunValues counts Gets that returned a value written by this run.
-	// This is the strongest single signal that the harness was actually
-	// talking to the system: reads that only ever return "not found" prove
-	// nothing about a store.
+	// ReadsOfRunValues counts Gets that returned a value written by this run,
+	// the strongest single signal that the harness was actually talking to the
+	// system: reads that only ever return "not found" prove nothing.
 	ReadsOfRunValues int
 
 	MinOpsPerKey int
@@ -211,6 +199,18 @@ func RunSchedule(ctx context.Context, target Target, cfg Config, opts Options) (
 	var faultMu sync.Mutex
 	var faultLog []string
 	faultsInjected := 0
+	logFault := func(at time.Duration, what string, f Fault, err error) {
+		line := fmt.Sprintf("%8s %s %s", at.Round(time.Millisecond), what, f.Name())
+		if err != nil {
+			line += fmt.Sprintf(" FAILED: %v", err)
+		}
+		faultMu.Lock()
+		if err == nil && what == "inject" {
+			faultsInjected++
+		}
+		faultLog = append(faultLog, line)
+		faultMu.Unlock()
+	}
 	faults := target.Faults()
 	var faultWG sync.WaitGroup
 	if len(faults) > 0 {
@@ -224,32 +224,16 @@ func RunSchedule(ctx context.Context, target Target, cfg Config, opts Options) (
 			for {
 				f := faults[rng.Intn(len(faults))]
 				at := time.Since(started)
-				if err := f.Inject(ctx); err != nil {
-					faultMu.Lock()
-					faultLog = append(faultLog, fmt.Sprintf("%8s inject %s FAILED: %v", at.Round(time.Millisecond), f.Name(), err))
-					faultMu.Unlock()
-				} else {
-					faultMu.Lock()
-					faultsInjected++
-					faultLog = append(faultLog, fmt.Sprintf("%8s inject %s", at.Round(time.Millisecond), f.Name()))
-					faultMu.Unlock()
-				}
+				logFault(at, "inject", f, f.Inject(ctx))
+
 				stop := sleepOrDone(done, cfg.FaultHold)
 				// Recover unconditionally, including on abort.
 				rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 				rerr := f.Recover(rctx)
 				cancel()
-				faultMu.Lock()
-				if rerr != nil {
-					faultLog = append(faultLog, fmt.Sprintf("%8s recover %s FAILED: %v", time.Since(started).Round(time.Millisecond), f.Name(), rerr))
-				} else {
-					faultLog = append(faultLog, fmt.Sprintf("%8s recover %s", time.Since(started).Round(time.Millisecond), f.Name()))
-				}
-				faultMu.Unlock()
-				if stop {
-					return
-				}
-				if sleepOrDone(done, cfg.FaultGap) {
+				logFault(time.Since(started), "recover", f, rerr)
+
+				if stop || sleepOrDone(done, cfg.FaultGap) {
 					return
 				}
 			}
@@ -388,12 +372,9 @@ func measure(history []Op, givenUp, faults int, dur time.Duration) Coverage {
 		}
 	}
 	cov.KeysTouched = len(perKey)
-	cov.MinOpsPerKey = 0
-	first := true
 	for _, n := range perKey {
-		if first || n < cov.MinOpsPerKey {
+		if cov.MinOpsPerKey == 0 || n < cov.MinOpsPerKey {
 			cov.MinOpsPerKey = n
-			first = false
 		}
 	}
 	return cov
@@ -418,8 +399,8 @@ func sleepOrDone(done <-chan struct{}, d time.Duration) bool {
 	}
 }
 
-// ReportRun renders a full run: coverage first, because a run whose coverage
-// floor was not met has no verdict worth reading.
+// ReportRun renders a full run, coverage first: a run that missed its floor
+// has no verdict worth reading.
 func ReportRun(r Run) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "target=%s seed=%d\n", r.Target, r.Seed)

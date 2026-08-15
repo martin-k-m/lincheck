@@ -2,12 +2,9 @@
 // Docker containers.
 //
 // It speaks etcd's v3 gRPC-gateway JSON API over plain net/http rather than
-// linking clientv3. That is a deliberate trade: it keeps this repository free
-// of etcd's dependency tree, and more importantly it keeps the adapter honest,
-// because every request is visible as an HTTP call with explicit options
-// rather than hidden behind a client library's retry and failover logic. A
-// client library that transparently retries would turn indeterminate outcomes
-// into apparent successes, which is precisely what must not happen here.
+// linking clientv3, so there is no dependency tree and, more importantly, no
+// library retry or failover turning indeterminate outcomes into apparent
+// successes.
 package etcd
 
 import (
@@ -79,8 +76,6 @@ func (c *Cluster) DocumentedModel() string {
 		"sets that flag, so every read below is a linearizable read."
 }
 
-// initialCluster is the --initial-cluster string, using container names as
-// peer hostnames on the user-defined bridge network.
 func (c *Cluster) initialCluster() string {
 	var parts []string
 	for _, n := range c.Nodes {
@@ -90,9 +85,8 @@ func (c *Cluster) initialCluster() string {
 }
 
 // Setup destroys any previous cluster and brings up a fresh empty one. It
-// returns only once a leader exists and a write succeeds: starting a schedule
-// against a cluster that has not elected a leader records a history that
-// proves nothing.
+// returns only once a write succeeds: starting a schedule against a cluster
+// with no leader records a history that proves nothing.
 func (c *Cluster) Setup(ctx context.Context) error {
 	_ = c.Teardown(ctx)
 
@@ -159,8 +153,6 @@ func (c *Cluster) Clients(_ context.Context, n int) ([]lincheck.Client, error) {
 	return out, nil
 }
 
-// Faults returns the fault set. Each node can be paused, killed, or cut off
-// from the cluster network.
 func (c *Cluster) Faults() []lincheck.Fault {
 	var out []lincheck.Fault
 	for _, n := range c.Nodes {
@@ -172,19 +164,6 @@ func (c *Cluster) Faults() []lincheck.Fault {
 	}
 	return out
 }
-
-// FaultNames lists the faults, for the record in a report.
-func (c *Cluster) FaultNames() []string {
-	var out []string
-	for _, f := range c.Faults() {
-		out = append(out, f.Name())
-	}
-	return out
-}
-
-// ---------------------------------------------------------------------------
-// Client
-// ---------------------------------------------------------------------------
 
 // Client speaks the v3 gateway JSON API against one node.
 type Client struct {
@@ -224,11 +203,10 @@ func (c *Client) post(ctx context.Context, path string, body any, out any) error
 		return fmt.Errorf("decode %s: %w", path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		// etcd's gateway reports "etcdserver: request timed out" and
-		// "etcdserver: no leader" the same way. They are not the same thing:
-		// "no leader" means the request was refused before entering the raft
-		// log, "request timed out" means it may well be sitting in the log.
-		// Getting this wrong in either direction corrupts the history.
+		// The gateway reports "no leader" and "request timed out" the same
+		// way, and they are not the same thing: "no leader" was refused before
+		// entering the raft log, "request timed out" may well be sitting in
+		// it. Getting this wrong in either direction corrupts the history.
 		s := string(raw)
 		if strings.Contains(s, "no leader") || strings.Contains(s, "not capable") {
 			return fmt.Errorf("%s: %w", strings.TrimSpace(s), lincheck.ErrRejected)
@@ -242,10 +220,6 @@ func (c *Client) post(ctx context.Context, path string, body any, out any) error
 }
 
 func isDialFailure(err error) bool {
-	var ne net.Error
-	if _, ok := err.(net.Error); ok {
-		_ = ne
-	}
 	s := err.Error()
 	return strings.Contains(s, "connection refused") ||
 		strings.Contains(s, "No connection could be made") ||
