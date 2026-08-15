@@ -1,0 +1,205 @@
+lincheck
+target:          etcd 3.5.17 (3-node cluster, Docker)
+docker daemon:   29.6.2
+documented model: etcd documents its key-value store as sequentially consistent and its default
+                  reads as linearizable: "etcd ensures linearizability for all other operations
+                  by default" and "linearizable requests ... go through a quorum of cluster
+                  members for consensus before serving" (etcd docs, learning/api_guarantees.md).
+                  Serializable reads are documented as the opt-out that may return stale data;
+                  this harness never sets that flag, so every read below is a linearizable read.
+schedules:       10 (seeds 1..10)
+clients:         6, ops/client: 120, keys: k0,k1,k2,k3,k4,k5
+fault set:       pause(lincheck-etcd-0), kill(lincheck-etcd-0), partition(lincheck-etcd-0 from lincheck-etcd), pause(lincheck-etcd-1), kill(lincheck-etcd-1), partition(lincheck-etcd-1 from lincheck-etcd), pause(lincheck-etcd-2), kill(lincheck-etcd-2), partition(lincheck-etcd-2 from lincheck-etcd)
+fault schedule:  first at 1s, hold 4s, gap 3s, uniformly at random from the fault set with the schedule seed
+
+---- schedule 1/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=1
+coverage: ops=720 completed=706 (get=351 put=319) in-doubt=14 given-up=0 reads-of-run-values=294 keys=6 min-ops-per-key=108 faults=3 duration=23.439s
+fault schedule:
+        1s inject kill(lincheck-etcd-0)
+    5.709s recover kill(lincheck-etcd-0)
+     8.71s inject partition(lincheck-etcd-1 from lincheck-etcd)
+   13.255s recover partition(lincheck-etcd-1 from lincheck-etcd)
+   16.256s inject kill(lincheck-etcd-1)
+   20.993s recover kill(lincheck-etcd-1)
+verdict: LINEARIZABLE
+key "k5": LINEARIZABLE (108 ops, 61 segments, 0s)
+key "k1": LINEARIZABLE (123 ops, 9 segments, 1ms)
+key "k3": LINEARIZABLE (118 ops, 84 segments, 0s)
+key "k4": LINEARIZABLE (127 ops, 118 segments, 0s)
+key "k2": LINEARIZABLE (123 ops, 103 segments, 0s)
+key "k0": LINEARIZABLE (121 ops, 112 segments, 0s)
+
+---- schedule 2/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=2
+coverage: ops=720 completed=711 (get=347 put=317) in-doubt=9 given-up=0 reads-of-run-values=287 keys=6 min-ops-per-key=98 faults=3 duration=23.215s
+fault schedule:
+        1s inject partition(lincheck-etcd-2 from lincheck-etcd)
+    5.508s recover partition(lincheck-etcd-2 from lincheck-etcd)
+    8.508s inject pause(lincheck-etcd-2)
+   12.876s recover pause(lincheck-etcd-2)
+   15.876s inject kill(lincheck-etcd-1)
+    20.54s recover kill(lincheck-etcd-1)
+verdict: LINEARIZABLE
+key "k0": LINEARIZABLE (134 ops, 85 segments, 1ms)
+key "k1": LINEARIZABLE (124 ops, 31 segments, 0s)
+key "k2": LINEARIZABLE (98 ops, 97 segments, 0s)
+key "k4": LINEARIZABLE (120 ops, 10 segments, 0s)
+key "k5": LINEARIZABLE (126 ops, 10 segments, 0s)
+key "k3": LINEARIZABLE (118 ops, 37 segments, 1ms)
+
+---- schedule 3/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=3
+coverage: ops=720 completed=706 (get=348 put=328) in-doubt=14 given-up=0 reads-of-run-values=313 keys=6 min-ops-per-key=104 faults=4 duration=25.904s
+fault schedule:
+    1.001s inject kill(lincheck-etcd-0)
+    5.905s recover kill(lincheck-etcd-0)
+    8.906s inject partition(lincheck-etcd-0 from lincheck-etcd)
+   13.538s recover partition(lincheck-etcd-0 from lincheck-etcd)
+   16.538s inject pause(lincheck-etcd-1)
+    20.89s recover pause(lincheck-etcd-1)
+    23.89s inject partition(lincheck-etcd-1 from lincheck-etcd)
+   25.904s recover partition(lincheck-etcd-1 from lincheck-etcd)
+verdict: LINEARIZABLE
+key "k4": LINEARIZABLE (127 ops, 15 segments, 0s)
+key "k2": LINEARIZABLE (104 ops, 74 segments, 0s)
+key "k3": LINEARIZABLE (110 ops, 7 segments, 0s)
+key "k5": LINEARIZABLE (115 ops, 15 segments, 0s)
+key "k0": LINEARIZABLE (120 ops, 13 segments, 1ms)
+key "k1": LINEARIZABLE (144 ops, 6 segments, 0s)
+
+---- schedule 4/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=4
+coverage: ops=720 completed=704 (get=372 put=303) in-doubt=16 given-up=0 reads-of-run-values=349 keys=6 min-ops-per-key=103 faults=4 duration=25.1s
+fault schedule:
+    1.001s inject partition(lincheck-etcd-2 from lincheck-etcd)
+    5.509s recover partition(lincheck-etcd-2 from lincheck-etcd)
+    8.509s inject pause(lincheck-etcd-1)
+   12.872s recover pause(lincheck-etcd-1)
+   15.872s inject pause(lincheck-etcd-2)
+   20.229s recover pause(lincheck-etcd-2)
+   23.229s inject partition(lincheck-etcd-1 from lincheck-etcd)
+     25.1s recover partition(lincheck-etcd-1 from lincheck-etcd)
+verdict: LINEARIZABLE
+key "k5": LINEARIZABLE (112 ops, 10 segments, 1ms)
+key "k4": LINEARIZABLE (103 ops, 16 segments, 1ms)
+key "k2": LINEARIZABLE (123 ops, 10 segments, 0s)
+key "k1": LINEARIZABLE (120 ops, 58 segments, 0s)
+key "k3": LINEARIZABLE (121 ops, 56 segments, 0s)
+key "k0": LINEARIZABLE (141 ops, 70 segments, 0s)
+
+---- schedule 5/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=5
+coverage: ops=720 completed=701 (get=344 put=331) in-doubt=19 given-up=0 reads-of-run-values=311 keys=6 min-ops-per-key=104 faults=4 duration=25.316s
+fault schedule:
+        1s inject kill(lincheck-etcd-0)
+    5.707s recover kill(lincheck-etcd-0)
+    8.707s inject pause(lincheck-etcd-1)
+   13.076s recover pause(lincheck-etcd-1)
+   16.076s inject partition(lincheck-etcd-1 from lincheck-etcd)
+   20.575s recover partition(lincheck-etcd-1 from lincheck-etcd)
+   23.575s inject pause(lincheck-etcd-2)
+   25.316s recover pause(lincheck-etcd-2)
+verdict: LINEARIZABLE
+key "k3": LINEARIZABLE (113 ops, 99 segments, 0s)
+key "k1": LINEARIZABLE (137 ops, 12 segments, 1ms)
+key "k0": LINEARIZABLE (110 ops, 13 segments, 0s)
+key "k4": LINEARIZABLE (104 ops, 10 segments, 0s)
+key "k5": LINEARIZABLE (141 ops, 122 segments, 1ms)
+key "k2": LINEARIZABLE (115 ops, 8 segments, 1ms)
+
+---- schedule 6/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=6
+coverage: ops=720 completed=707 (get=355 put=326) in-doubt=13 given-up=0 reads-of-run-values=326 keys=6 min-ops-per-key=101 faults=3 duration=23.369s
+fault schedule:
+        1s inject kill(lincheck-etcd-1)
+    5.696s recover kill(lincheck-etcd-1)
+    8.697s inject partition(lincheck-etcd-2 from lincheck-etcd)
+   13.201s recover partition(lincheck-etcd-2 from lincheck-etcd)
+   16.201s inject partition(lincheck-etcd-1 from lincheck-etcd)
+     20.7s recover partition(lincheck-etcd-1 from lincheck-etcd)
+verdict: LINEARIZABLE
+key "k3": LINEARIZABLE (123 ops, 75 segments, 0s)
+key "k5": LINEARIZABLE (127 ops, 16 segments, 0s)
+key "k4": LINEARIZABLE (133 ops, 75 segments, 0s)
+key "k2": LINEARIZABLE (119 ops, 79 segments, 1ms)
+key "k0": LINEARIZABLE (117 ops, 114 segments, 0s)
+key "k1": LINEARIZABLE (101 ops, 6 segments, 0s)
+
+---- schedule 7/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=7
+coverage: ops=720 completed=707 (get=346 put=334) in-doubt=13 given-up=0 reads-of-run-values=318 keys=6 min-ops-per-key=96 faults=3 duration=23.43s
+fault schedule:
+        1s inject kill(lincheck-etcd-0)
+    5.987s recover kill(lincheck-etcd-0)
+    8.988s inject pause(lincheck-etcd-0)
+    13.35s recover pause(lincheck-etcd-0)
+   16.351s inject kill(lincheck-etcd-1)
+    21.01s recover kill(lincheck-etcd-1)
+verdict: LINEARIZABLE
+key "k3": LINEARIZABLE (130 ops, 16 segments, 0s)
+key "k2": LINEARIZABLE (118 ops, 14 segments, 0s)
+key "k1": LINEARIZABLE (130 ops, 7 segments, 1ms)
+key "k5": LINEARIZABLE (117 ops, 58 segments, 0s)
+key "k0": LINEARIZABLE (96 ops, 7 segments, 0s)
+key "k4": LINEARIZABLE (129 ops, 122 segments, 0s)
+
+---- schedule 8/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=8
+coverage: ops=720 completed=708 (get=342 put=334) in-doubt=12 given-up=0 reads-of-run-values=296 keys=6 min-ops-per-key=99 faults=3 duration=23.054s
+fault schedule:
+    1.001s inject pause(lincheck-etcd-2)
+    5.356s recover pause(lincheck-etcd-2)
+    8.356s inject kill(lincheck-etcd-2)
+   13.034s recover kill(lincheck-etcd-2)
+   16.035s inject partition(lincheck-etcd-0 from lincheck-etcd)
+   20.533s recover partition(lincheck-etcd-0 from lincheck-etcd)
+verdict: LINEARIZABLE
+key "k4": LINEARIZABLE (116 ops, 29 segments, 1ms)
+key "k2": LINEARIZABLE (131 ops, 62 segments, 0s)
+key "k0": LINEARIZABLE (99 ops, 99 segments, 1ms)
+key "k5": LINEARIZABLE (131 ops, 129 segments, 0s)
+key "k3": LINEARIZABLE (125 ops, 14 segments, 1ms)
+key "k1": LINEARIZABLE (118 ops, 63 segments, 1ms)
+
+---- schedule 9/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=9
+coverage: ops=720 completed=701 (get=344 put=328) in-doubt=19 given-up=0 reads-of-run-values=316 keys=6 min-ops-per-key=93 faults=4 duration=27.171s
+fault schedule:
+        1s inject partition(lincheck-etcd-0 from lincheck-etcd)
+    5.512s recover partition(lincheck-etcd-0 from lincheck-etcd)
+    8.512s inject kill(lincheck-etcd-1)
+   13.177s recover kill(lincheck-etcd-1)
+   16.177s inject partition(lincheck-etcd-0 from lincheck-etcd)
+   20.707s recover partition(lincheck-etcd-0 from lincheck-etcd)
+   23.707s inject kill(lincheck-etcd-2)
+   27.171s recover kill(lincheck-etcd-2)
+verdict: LINEARIZABLE
+key "k0": LINEARIZABLE (119 ops, 11 segments, 0s)
+key "k2": LINEARIZABLE (126 ops, 22 segments, 1ms)
+key "k4": LINEARIZABLE (108 ops, 97 segments, 0s)
+key "k1": LINEARIZABLE (93 ops, 43 segments, 1ms)
+key "k5": LINEARIZABLE (141 ops, 30 segments, 1ms)
+key "k3": LINEARIZABLE (133 ops, 14 segments, 0s)
+
+---- schedule 10/10 ----
+target=etcd 3.5.17 (3-node cluster, Docker) seed=10
+coverage: ops=720 completed=704 (get=324 put=356) in-doubt=16 given-up=0 reads-of-run-values=307 keys=6 min-ops-per-key=113 faults=3 duration=22.785s
+fault schedule:
+        1s inject kill(lincheck-etcd-0)
+    7.122s recover kill(lincheck-etcd-0)
+   10.123s inject partition(lincheck-etcd-2 from lincheck-etcd)
+   14.652s recover partition(lincheck-etcd-2 from lincheck-etcd)
+   17.653s inject kill(lincheck-etcd-0)
+    22.32s recover kill(lincheck-etcd-0)
+verdict: LINEARIZABLE
+key "k4": LINEARIZABLE (113 ops, 11 segments, 2ms)
+key "k0": LINEARIZABLE (128 ops, 11 segments, 0s)
+key "k5": LINEARIZABLE (123 ops, 121 segments, 0s)
+key "k3": LINEARIZABLE (119 ops, 6 segments, 1ms)
+key "k2": LINEARIZABLE (115 ops, 13 segments, 0s)
+key "k1": LINEARIZABLE (122 ops, 9 segments, 0s)
+
+==== totals over 10 schedules ====
+operations recorded: 7200, completed: 7055, in doubt: 145, faults injected: 34
+result: no linearizability violation found

@@ -1,0 +1,340 @@
+lincheck
+target:          Redis 7 (primary + async replica, Docker)
+docker daemon:   29.6.2
+documented model: Redis documents its replication as asynchronous and explicitly states that
+                  acknowledged writes can be lost: "Redis uses by default asynchronous
+                  replication, which being low latency and high performance, is the natural
+                  replication mode for the vast majority of Redis use cases. However, Redis
+                  replicas asynchronously acknowledge the amount of data they receive
+                  periodically ... Redis Cluster is not able to guarantee strong consistency"
+                  (Redis docs, operate/oss_and_stack/management/replication and Redis Cluster
+                  specification). This target is therefore NOT expected to be linearizable, and
+                  is included to demonstrate that this checker detects a real violation rather
+                  than to report one as a discovery.
+schedules:       10 (seeds 1..10)
+clients:         3, ops/client: 400, keys: k0,k1,k2,k3
+fault set:       failover(isolate replica 2s, kill primary, promote replica)
+fault schedule:  first at 1s, hold 6s, gap 6s, uniformly at random from the fault set with the schedule seed
+
+---- schedule 1/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=1
+coverage: ops=1200 completed=1171 (get=708 put=425) in-doubt=29 given-up=0 reads-of-run-values=642 keys=4 min-ops-per-key=285 faults=1 duration=7.936s
+fault schedule:
+        1s inject failover(isolate replica 2s, kill primary, promote replica)
+    7.936s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k1": VIOLATION (303 ops, 139 segments, 43ms)
+  minimized violating history (9 ops, no linearization exists):
+     0  call=         0s ret=    1.107ms  client1@lincheck-redis-0: Delete("k1")
+     1  call=  791.056ms ret=   792.68ms  client2@lincheck-redis-0: Put("k1", "c2-n55-s1")
+     2  call=  957.308ms ret=  958.867ms  client0@lincheck-redis-0: Delete("k1")
+     3  call=   1.41612s ret=  1.417715s  client0@lincheck-redis-0: Delete("k1")
+     4  call=  1.507149s ret=  1.508193s  client0@lincheck-redis-0: Delete("k1")
+     5  call=  2.025782s ret=  2.028171s  client1@lincheck-redis-0: Delete("k1")
+     6  call=   2.76336s ret=  2.765848s  client1@lincheck-redis-0: Delete("k1")
+     7  call=  2.817927s ret=  2.821361s  client2@lincheck-redis-0: Delete("k1")
+     8  call=  3.814584s ret=  3.817275s  client0@lincheck-redis-1: Get("k1") -> found=true value="c2-n55-s1"
+key "k3": LINEARIZABLE (285 ops, 132 segments, 1ms)
+key "k2": VIOLATION (297 ops, 130 segments, 30ms)
+  minimized violating history (7 ops, no linearization exists):
+     0  call=         0s ret=    1.214ms  client0@lincheck-redis-0: Delete("k2")
+     1  call=  168.728ms ret=  170.315ms  client2@lincheck-redis-0: Delete("k2")
+     2  call=  572.619ms ret=  574.181ms  client1@lincheck-redis-0: Put("k2", "c1-n56-s1")
+     3  call=  1.074627s ret=  1.076766s  client0@lincheck-redis-0: Delete("k2")
+     4  call=  1.273946s ret=  1.275755s  client1@lincheck-redis-0: Delete("k2")
+     5  call=  2.123466s ret=  2.127641s  client2@lincheck-redis-0: Delete("k2")
+     6  call=  3.648191s ret=  3.650385s  client1@lincheck-redis-1: Get("k2") -> found=true value="c1-n56-s1"
+key "k0": VIOLATION (315 ops, 146 segments, 30ms)
+  minimized violating history (3 ops, no linearization exists):
+     0  call=         0s ret=    1.032ms  client1@lincheck-redis-0: Put("k0", "c1-n70-s1")
+     1  call=  398.411ms ret=  400.145ms  client2@lincheck-redis-0: Delete("k0")
+     2  call=   2.91682s ret=  2.918381s  client2@lincheck-redis-1: Get("k0") -> found=true value="c1-n70-s1"
+
+---- schedule 2/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=2
+coverage: ops=1200 completed=1173 (get=710 put=415) in-doubt=27 given-up=0 reads-of-run-values=642 keys=4 min-ops-per-key=295 faults=1 duration=8.196s
+fault schedule:
+    1.001s inject failover(isolate replica 2s, kill primary, promote replica)
+    8.196s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k3": VIOLATION (295 ops, 126 segments, 25ms)
+  minimized violating history (5 ops, no linearization exists):
+     0  call=         0s ret=    2.121ms  client2@lincheck-redis-0: Delete("k3")
+     1  call=  707.222ms ret=  709.339ms  client0@lincheck-redis-0: Put("k3", "c0-n57-s2")
+     2  call=  2.720832s ret=  2.724235s  client0@lincheck-redis-0: Delete("k3")
+     3  call=  2.908699s ret=   2.91201s  client2@lincheck-redis-0: Delete("k3")
+     4  call=  3.726166s ret=  3.732069s  client0@lincheck-redis-1: Get("k3") -> found=true value="c0-n57-s2"
+key "k2": LINEARIZABLE (298 ops, 124 segments, 1ms)
+key "k0": VIOLATION (304 ops, 130 segments, 67ms)
+  minimized violating history (10 ops, no linearization exists):
+     0  call=         0s ret=     1.69ms  client0@lincheck-redis-0: Delete("k0")
+     1  call=   153.56ms ret=  155.492ms  client0@lincheck-redis-0: Delete("k0")
+     2  call=    537.8ms ret=  539.924ms  client1@lincheck-redis-0: Put("k0", "c1-n55-s2")
+     3  call=  784.547ms ret=  785.592ms  client1@lincheck-redis-0: Delete("k0")
+     4  call=  828.826ms ret=  830.965ms  client0@lincheck-redis-0: Delete("k0")
+     5  call=  883.472ms ret=  885.169ms  client2@lincheck-redis-0: Delete("k0")
+     6  call=  1.236242s ret=  1.237771s  client0@lincheck-redis-0: Delete("k0")
+     7  call=  1.992932s ret=  1.994521s  client0@lincheck-redis-0: Delete("k0")
+     8  call=  2.302048s ret=   2.30392s  client1@lincheck-redis-0: Delete("k0")
+     9  call=  3.534373s ret=   3.53917s  client0@lincheck-redis-1: Get("k0") -> found=true value="c1-n55-s2"
+key "k1": VIOLATION (303 ops, 143 segments, 49ms)
+  minimized violating history (5 ops, no linearization exists):
+     0  call=         0s ret=    1.568ms  client0@lincheck-redis-0: Put("k1", "c0-n62-s2")
+     1  call=   60.615ms ret=   62.156ms  client2@lincheck-redis-0: Delete("k1")
+     2  call=  912.653ms ret=  914.235ms  client2@lincheck-redis-0: Delete("k1")
+     3  call=  2.128677s ret=  2.131691s  client0@lincheck-redis-0: Delete("k1")
+     4  call=   2.92204s ret=  2.926636s  client0@lincheck-redis-1: Get("k1") -> found=true value="c0-n62-s2"
+
+---- schedule 3/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=3
+coverage: ops=1200 completed=1179 (get=712 put=420) in-doubt=21 given-up=0 reads-of-run-values=623 keys=4 min-ops-per-key=289 faults=1 duration=8.056s
+fault schedule:
+        1s inject failover(isolate replica 2s, kill primary, promote replica)
+    8.056s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k0": VIOLATION (309 ops, 141 segments, 30ms)
+  minimized violating history (8 ops, no linearization exists):
+     0  call=         0s ret=    1.677ms  client1@lincheck-redis-0: Delete("k0")
+     1  call=  274.942ms ret=  277.035ms  client1@lincheck-redis-0: Delete("k0")
+     2  call=  321.438ms ret=  323.515ms  client2@lincheck-redis-0: Delete("k0")
+     3  call=  335.961ms ret=  337.532ms  client1@lincheck-redis-0: Delete("k0")
+     4  call=  761.031ms ret=  762.209ms  client0@lincheck-redis-0: Delete("k0")
+     5  call=  982.864ms ret=  984.947ms  client2@lincheck-redis-0: Delete("k0")
+     6  call=  2.954905s ret=  2.956394s  client0@lincheck-redis-0: Put("k0", "c0-n169-s3")
+     7  call=  3.849605s ret=  3.850646s  client1@lincheck-redis-1: Get("k0") -> found=false value=""
+key "k2": VIOLATION (296 ops, 125 segments, 23ms)
+  minimized violating history (4 ops, no linearization exists):
+     0  call=         0s ret=    2.112ms  client1@lincheck-redis-0: Delete("k2")
+     1  call=  714.238ms ret=  716.557ms  client1@lincheck-redis-0: Put("k2", "c1-n52-s3")
+     2  call=  1.320153s ret=  1.322251s  client1@lincheck-redis-0: Delete("k2")
+     3  call=  3.808345s ret=  3.809411s  client2@lincheck-redis-1: Get("k2") -> found=true value="c1-n52-s3"
+key "k1": VIOLATION (306 ops, 121 segments, 35ms)
+  minimized violating history (8 ops, no linearization exists):
+     0  call=         0s ret=    2.083ms  client1@lincheck-redis-0: Delete("k1")
+     1  call=   61.657ms ret=   63.536ms  client2@lincheck-redis-0: Delete("k1")
+     2  call=  595.928ms ret=  598.528ms  client1@lincheck-redis-0: Delete("k1")
+     3  call=  723.386ms ret=  725.499ms  client2@lincheck-redis-0: Put("k1", "c2-n52-s3")
+     4  call=  937.664ms ret=  940.346ms  client2@lincheck-redis-0: Delete("k1")
+     5  call=  2.608289s ret=   2.60988s  client0@lincheck-redis-0: Delete("k1")
+     6  call=  2.819764s ret=  2.821405s  client2@lincheck-redis-0: Delete("k1")
+     7  call=  3.705426s ret=  3.711298s  client1@lincheck-redis-1: Get("k1") -> found=true value="c2-n52-s3"
+key "k3": VIOLATION (289 ops, 144 segments, 41ms)
+  minimized violating history (8 ops, no linearization exists):
+     0  call=         0s ret=    2.363ms  client1@lincheck-redis-0: Delete("k3")
+     1  call=  672.671ms ret=  674.785ms  client2@lincheck-redis-0: Delete("k3")
+     2  call=  827.784ms ret=  829.967ms  client0@lincheck-redis-0: Put("k3", "c0-n59-s3")
+     3  call=   1.21244s ret=  1.214713s  client0@lincheck-redis-0: Delete("k3")
+     4  call=   1.32681s ret=  1.329675s  client0@lincheck-redis-0: Delete("k3")
+     5  call=  1.387616s ret=  1.389742s  client0@lincheck-redis-0: Delete("k3")
+     6  call=  2.140622s ret=  2.142217s  client2@lincheck-redis-0: Delete("k3")
+     7  call=  3.708849s ret=  3.711002s  client0@lincheck-redis-1: Get("k3") -> found=true value="c0-n59-s3"
+
+---- schedule 4/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=4
+coverage: ops=1200 completed=1175 (get=722 put=412) in-doubt=25 given-up=0 reads-of-run-values=650 keys=4 min-ops-per-key=290 faults=1 duration=8.2s
+fault schedule:
+        1s inject failover(isolate replica 2s, kill primary, promote replica)
+      8.2s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k2": VIOLATION (302 ops, 131 segments, 29ms)
+  minimized violating history (5 ops, no linearization exists):
+     0  call=         0s ret=    2.116ms  client2@lincheck-redis-0: Put("k2", "c2-n57-s4")
+     1  call=   396.83ms ret=  399.844ms  client1@lincheck-redis-0: Delete("k2")
+     2  call=  929.727ms ret=  932.918ms  client2@lincheck-redis-0: Delete("k2")
+     3  call=   1.77318s ret=  1.774755s  client0@lincheck-redis-0: Delete("k2")
+     4  call=  2.913045s ret=  2.914649s  client1@lincheck-redis-1: Get("k2") -> found=true value="c2-n57-s4"
+key "k0": LINEARIZABLE (290 ops, 125 segments, 1ms)
+key "k1": VIOLATION (317 ops, 132 segments, 29ms)
+  minimized violating history (9 ops, no linearization exists):
+     0  call=         0s ret=    2.104ms  client0@lincheck-redis-0: Delete("k1")
+     1  call=  193.457ms ret=  195.008ms  client0@lincheck-redis-0: Delete("k1")
+     2  call=  474.603ms ret=  476.179ms  client1@lincheck-redis-0: Delete("k1")
+     3  call=  870.677ms ret=  872.748ms  client0@lincheck-redis-0: Put("k1", "c0-n54-s4")
+     4  call=  969.431ms ret=  977.389ms  client1@lincheck-redis-0: Delete("k1")
+     5  call=  1.242797s ret=  1.244377s  client0@lincheck-redis-0: Delete("k1")
+     6  call=  1.414617s ret=   1.41689s  client2@lincheck-redis-0: Delete("k1")
+     7  call=  2.858212s ret=  2.860284s  client2@lincheck-redis-0: Delete("k1")
+     8  call=  3.860346s ret=   3.86245s  client2@lincheck-redis-1: Get("k1") -> found=true value="c0-n54-s4"
+key "k3": VIOLATION (291 ops, 129 segments, 25ms)
+  minimized violating history (7 ops, no linearization exists):
+     0  call=         0s ret=    2.102ms  client1@lincheck-redis-0: Put("k3", "c1-n53-s4")
+     1  call=  1.032973s ret=  1.039424s  client0@lincheck-redis-0: Delete("k3")
+     2  call=  1.111638s ret=  1.114244s  client1@lincheck-redis-0: Delete("k3")
+     3  call=  1.169804s ret=  1.172824s  client0@lincheck-redis-0: Delete("k3")
+     4  call=  1.756229s ret=  1.757778s  client1@lincheck-redis-0: Delete("k3")
+     5  call=  1.878478s ret=  1.881807s  client2@lincheck-redis-0: Delete("k3")
+     6  call=   2.95667s ret=  2.959261s  client1@lincheck-redis-1: Get("k3") -> found=true value="c1-n53-s4"
+
+---- schedule 5/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=5
+coverage: ops=1200 completed=1183 (get=681 put=466) in-doubt=17 given-up=0 reads-of-run-values=617 keys=4 min-ops-per-key=282 faults=1 duration=8.387s
+fault schedule:
+        1s inject failover(isolate replica 2s, kill primary, promote replica)
+    8.387s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k2": LINEARIZABLE (303 ops, 126 segments, 1ms)
+key "k3": VIOLATION (301 ops, 117 segments, 50ms)
+  minimized violating history (5 ops, no linearization exists):
+     0  call=         0s ret=    4.642ms  client1@lincheck-redis-0: Delete("k3")
+     1  call=  662.816ms ret=  664.962ms  client2@lincheck-redis-0: Put("k3", "c2-n56-s5")
+     2  call=  2.263606s ret=   2.26627s  client2@lincheck-redis-0: Delete("k3")
+     3  call=  2.543315s ret=  2.547282s  client0@lincheck-redis-0: Delete("k3")
+     4  call=  3.532401s ret=  3.537835s  client2@lincheck-redis-1: Get("k3") -> found=true value="c2-n56-s5"
+key "k0": VIOLATION (282 ops, 111 segments, 26ms)
+  minimized violating history (7 ops, no linearization exists):
+     0  call=         0s ret=     2.68ms  client1@lincheck-redis-0: Delete("k0")
+     1  call=  812.601ms ret=  814.714ms  client2@lincheck-redis-0: Put("k0", "c2-n58-s5")
+     2  call=  1.052778s ret=  1.055177s  client0@lincheck-redis-0: Delete("k0")
+     3  call=  1.080615s ret=  1.082864s  client2@lincheck-redis-0: Delete("k0")
+     4  call=  1.197114s ret=  1.198667s  client1@lincheck-redis-0: Delete("k0")
+     5  call=  3.135341s ret=        n/a  client1@lincheck-redis-0: Delete("k0") [in doubt: outcome never observed: EOF]
+     6  call=  3.706749s ret=  3.709055s  client1@lincheck-redis-1: Get("k0") -> found=true value="c2-n58-s5"
+key "k1": LINEARIZABLE (314 ops, 141 segments, 1ms)
+
+---- schedule 6/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=6
+coverage: ops=1200 completed=1178 (get=710 put=426) in-doubt=22 given-up=0 reads-of-run-values=619 keys=4 min-ops-per-key=290 faults=1 duration=8.358s
+fault schedule:
+    1.001s inject failover(isolate replica 2s, kill primary, promote replica)
+    8.358s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k3": LINEARIZABLE (290 ops, 121 segments, 1ms)
+key "k1": VIOLATION (290 ops, 127 segments, 31ms)
+  minimized violating history (9 ops, no linearization exists):
+     0  call=         0s ret=     3.18ms  client0@lincheck-redis-0: Delete("k1")
+     1  call=   80.532ms ret=   83.407ms  client2@lincheck-redis-0: Delete("k1")
+     2  call=  450.672ms ret=  452.218ms  client0@lincheck-redis-0: Delete("k1")
+     3  call=  704.695ms ret=  707.369ms  client0@lincheck-redis-0: Put("k1", "c0-n50-s6")
+     4  call=  768.624ms ret=  772.531ms  client0@lincheck-redis-0: Delete("k1")
+     5  call=  1.158632s ret=  1.160393s  client1@lincheck-redis-0: Delete("k1")
+     6  call=  1.458434s ret=   1.46158s  client2@lincheck-redis-0: Delete("k1")
+     7  call=  1.462654s ret=  1.464229s  client2@lincheck-redis-0: Delete("k1")
+     8  call=  3.585039s ret=   3.58729s  client1@lincheck-redis-1: Get("k1") -> found=true value="c0-n50-s6"
+key "k2": LINEARIZABLE (317 ops, 134 segments, 2ms)
+key "k0": VIOLATION (303 ops, 131 segments, 26ms)
+  minimized violating history (6 ops, no linearization exists):
+     0  call=         0s ret=    2.663ms  client2@lincheck-redis-0: Delete("k0")
+     1  call=  101.111ms ret=  104.676ms  client1@lincheck-redis-0: Delete("k0")
+     2  call=  416.457ms ret=  419.135ms  client0@lincheck-redis-0: Put("k0", "c0-n48-s6")
+     3  call=  1.801709s ret=  1.802724s  client1@lincheck-redis-0: Delete("k0")
+     4  call=  1.984977s ret=  1.986566s  client2@lincheck-redis-0: Delete("k0")
+     5  call=   3.34198s ret=   3.34459s  client0@lincheck-redis-1: Get("k0") -> found=true value="c0-n48-s6"
+
+---- schedule 7/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=7
+coverage: ops=1200 completed=1178 (get=721 put=413) in-doubt=22 given-up=0 reads-of-run-values=671 keys=4 min-ops-per-key=290 faults=1 duration=8.55s
+fault schedule:
+        1s inject failover(isolate replica 2s, kill primary, promote replica)
+     8.55s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k3": LINEARIZABLE (313 ops, 128 segments, 1ms)
+key "k2": VIOLATION (290 ops, 116 segments, 24ms)
+  minimized violating history (4 ops, no linearization exists):
+     0  call=         0s ret=    4.276ms  client2@lincheck-redis-0: Delete("k2")
+     1  call=  584.364ms ret=  595.237ms  client2@lincheck-redis-0: Put("k2", "c2-n51-s7")
+     2  call=  1.690712s ret=  1.693441s  client1@lincheck-redis-0: Delete("k2")
+     3  call=   3.57865s ret=  3.581783s  client0@lincheck-redis-1: Get("k2") -> found=true value="c2-n51-s7"
+key "k1": VIOLATION (305 ops, 113 segments, 34ms)
+  minimized violating history (7 ops, no linearization exists):
+     0  call=         0s ret=    3.741ms  client1@lincheck-redis-0: Delete("k1")
+     1  call=  521.738ms ret=  525.466ms  client1@lincheck-redis-0: Delete("k1")
+     2  call=  533.281ms ret=  536.389ms  client2@lincheck-redis-0: Put("k1", "c2-n41-s7")
+     3  call=  1.513984s ret=  1.526977s  client2@lincheck-redis-0: Delete("k1")
+     4  call=   1.67732s ret=  1.679511s  client0@lincheck-redis-0: Delete("k1")
+     5  call=  2.251388s ret=  2.255154s  client1@lincheck-redis-0: Delete("k1")
+     6  call=  3.799237s ret=  3.801963s  client0@lincheck-redis-1: Get("k1") -> found=true value="c2-n41-s7"
+key "k0": LINEARIZABLE (292 ops, 120 segments, 1ms)
+
+---- schedule 8/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=8
+coverage: ops=1200 completed=1176 (get=727 put=417) in-doubt=24 given-up=0 reads-of-run-values=654 keys=4 min-ops-per-key=279 faults=1 duration=8.564s
+fault schedule:
+        1s inject failover(isolate replica 2s, kill primary, promote replica)
+    8.564s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k0": VIOLATION (279 ops, 105 segments, 15ms)
+  minimized violating history (5 ops, no linearization exists):
+     0  call=         0s ret=    2.664ms  client0@lincheck-redis-0: Put("k0", "c0-n53-s8")
+     1  call=  105.324ms ret=  107.927ms  client1@lincheck-redis-0: Delete("k0")
+     2  call=  127.124ms ret=   129.23ms  client0@lincheck-redis-0: Delete("k0")
+     3  call=  2.929226s ret=  2.932907s  client1@lincheck-redis-1: Get("k0") -> found=true value="c0-n53-s8"
+     4  call=  2.931846s ret=  2.934515s  client0@lincheck-redis-1: Delete("k0")
+key "k2": VIOLATION (300 ops, 115 segments, 58ms)
+  minimized violating history (8 ops, no linearization exists):
+     0  call=         0s ret=    2.713ms  client1@lincheck-redis-0: Delete("k2")
+     1  call=  463.372ms ret=  465.675ms  client2@lincheck-redis-0: Delete("k2")
+     2  call=  577.928ms ret=  581.471ms  client0@lincheck-redis-0: Put("k2", "c0-n49-s8")
+     3  call=  780.829ms ret=  783.713ms  client2@lincheck-redis-0: Delete("k2")
+     4  call=  1.458365s ret=  1.463412s  client2@lincheck-redis-0: Delete("k2")
+     5  call=  2.413359s ret=  2.415389s  client0@lincheck-redis-0: Delete("k2")
+     6  call=  3.022532s ret=        n/a  client0@lincheck-redis-0: Delete("k2") [in doubt: outcome never observed: EOF]
+     7  call=   3.56264s ret=  3.566296s  client0@lincheck-redis-1: Get("k2") -> found=true value="c0-n49-s8"
+key "k3": VIOLATION (302 ops, 116 segments, 49ms)
+  minimized violating history (5 ops, no linearization exists):
+     0  call=         0s ret=    2.098ms  client1@lincheck-redis-0: Put("k3", "c1-n57-s8")
+     1  call=  208.379ms ret=  209.942ms  client0@lincheck-redis-0: Delete("k3")
+     2  call=  2.101905s ret=  2.104643s  client1@lincheck-redis-0: Delete("k3")
+     3  call=  2.375357s ret=        n/a  client0@lincheck-redis-0: Delete("k3") [in doubt: outcome never observed: EOF]
+     4  call=   2.89482s ret=  2.897479s  client0@lincheck-redis-1: Get("k3") -> found=true value="c1-n57-s8"
+key "k1": VIOLATION (319 ops, 142 segments, 61ms)
+  minimized violating history (7 ops, no linearization exists):
+     0  call=         0s ret=    2.193ms  client1@lincheck-redis-0: Delete("k1")
+     1  call=  316.441ms ret=   319.81ms  client1@lincheck-redis-0: Delete("k1")
+     2  call=  823.567ms ret=  826.488ms  client2@lincheck-redis-0: Put("k1", "c2-n51-s8")
+     3  call=  1.832228s ret=  1.835948s  client2@lincheck-redis-0: Delete("k1")
+     4  call=   1.84702s ret=  1.849637s  client0@lincheck-redis-0: Delete("k1")
+     5  call=  2.971553s ret=   2.97441s  client2@lincheck-redis-0: Delete("k1")
+     6  call=  3.806547s ret=   3.80919s  client1@lincheck-redis-1: Get("k1") -> found=true value="c2-n51-s8"
+
+---- schedule 9/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=9
+coverage: ops=1200 completed=1176 (get=713 put=421) in-doubt=24 given-up=0 reads-of-run-values=636 keys=4 min-ops-per-key=283 faults=1 duration=8.808s
+fault schedule:
+    1.001s inject failover(isolate replica 2s, kill primary, promote replica)
+    8.807s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k0": LINEARIZABLE (315 ops, 121 segments, 2ms)
+key "k2": VIOLATION (283 ops, 100 segments, 26ms)
+  minimized violating history (6 ops, no linearization exists):
+     0  call=         0s ret=   33.657ms  client0@lincheck-redis-0: Delete("k2")
+     1  call=  620.058ms ret=  629.093ms  client1@lincheck-redis-0: Put("k2", "c1-n45-s9")
+     2  call=  1.090621s ret=  1.095532s  client1@lincheck-redis-0: Delete("k2")
+     3  call=  1.743057s ret=  1.745794s  client0@lincheck-redis-0: Delete("k2")
+     4  call=  1.898689s ret=  1.902459s  client1@lincheck-redis-0: Delete("k2")
+     5  call=  3.754773s ret=  3.761241s  client2@lincheck-redis-1: Get("k2") -> found=true value="c1-n45-s9"
+key "k1": VIOLATION (290 ops, 109 segments, 33ms)
+  minimized violating history (10 ops, no linearization exists):
+     0  call=         0s ret=    4.272ms  client1@lincheck-redis-0: Put("k1", "c1-n47-s9")
+     1  call=  351.161ms ret=  354.576ms  client1@lincheck-redis-0: Delete("k1")
+     2  call=  395.044ms ret=  397.647ms  client0@lincheck-redis-0: Delete("k1")
+     3  call=  769.591ms ret=  772.785ms  client2@lincheck-redis-0: Delete("k1")
+     4  call=  1.291933s ret=  1.295253s  client0@lincheck-redis-0: Delete("k1")
+     5  call=  1.681739s ret=  1.684853s  client2@lincheck-redis-0: Delete("k1")
+     6  call=  2.201681s ret=  2.207672s  client1@lincheck-redis-0: Delete("k1")
+     7  call=  2.483227s ret=        n/a  client1@lincheck-redis-0: Delete("k1") [in doubt: outcome never observed: EOF]
+     8  call=  2.520558s ret=        n/a  client0@lincheck-redis-0: Delete("k1") [in doubt: outcome never observed: EOF]
+     9  call=  3.069543s ret=  3.072748s  client0@lincheck-redis-1: Get("k1") -> found=true value="c1-n47-s9"
+key "k3": LINEARIZABLE (312 ops, 120 segments, 2ms)
+
+---- schedule 10/10 ----
+target=Redis 7 (primary + async replica, Docker) seed=10
+coverage: ops=1200 completed=1174 (get=691 put=441) in-doubt=26 given-up=0 reads-of-run-values=622 keys=4 min-ops-per-key=273 faults=1 duration=8.459s
+fault schedule:
+        1s inject failover(isolate replica 2s, kill primary, promote replica)
+    8.459s recover failover(isolate replica 2s, kill primary, promote replica)
+verdict: VIOLATION
+key "k0": LINEARIZABLE (273 ops, 108 segments, 1ms)
+key "k1": VIOLATION (306 ops, 126 segments, 38ms)
+  minimized violating history (5 ops, no linearization exists):
+     0  call=         0s ret=    2.118ms  client1@lincheck-redis-0: Put("k1", "c1-n53-s10")
+     1  call=  320.054ms ret=  322.784ms  client2@lincheck-redis-0: Delete("k1")
+     2  call=  1.417433s ret=  1.420562s  client0@lincheck-redis-0: Delete("k1")
+     3  call=   1.75017s ret=  1.752261s  client2@lincheck-redis-0: Delete("k1")
+     4  call=  3.013832s ret=  3.016926s  client1@lincheck-redis-1: Get("k1") -> found=true value="c1-n53-s10"
+key "k3": LINEARIZABLE (299 ops, 118 segments, 2ms)
+key "k2": LINEARIZABLE (322 ops, 135 segments, 1ms)
+
+==== totals over 10 schedules ====
+operations recorded: 12000, completed: 11763, in doubt: 237, faults injected: 10
+result: VIOLATION, see the minimized histories above
+exit status 1

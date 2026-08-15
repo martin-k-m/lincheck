@@ -1,0 +1,214 @@
+lincheck
+target:          Consul 1.20 (3-server cluster, Docker)
+docker daemon:   29.6.2
+documented model: Consul documents three read consistency modes for its KV store. "consistent"
+                  is described as: "This mode is strongly consistent without caveats. It
+                  requires that a leader verify with a quorum of peers that it is still leader.
+                  This introduces an additional round-trip to all server nodes." The "default"
+                  mode is documented as possibly stale: "in a very rare failure scenario ... the
+                  old leader may service some reads" (Consul docs,
+                  api-docs/features/consistency). Writes go through Raft. This harness sets
+                  consistent=true on every read, so it is checking the mode Consul documents as
+                  strongly consistent, not the stale-tolerant default.
+schedules:       10 (seeds 1..10)
+clients:         6, ops/client: 120, keys: k0,k1,k2,k3,k4,k5
+fault set:       pause(lincheck-consul-0), kill(lincheck-consul-0), partition(lincheck-consul-0 from lincheck-consul), pause(lincheck-consul-1), kill(lincheck-consul-1), partition(lincheck-consul-1 from lincheck-consul), pause(lincheck-consul-2), kill(lincheck-consul-2), partition(lincheck-consul-2 from lincheck-consul)
+fault schedule:  first at 1s, hold 4s, gap 3s, uniformly at random from the fault set with the schedule seed
+
+---- schedule 1/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=1
+coverage: ops=720 completed=688 (get=342 put=311) in-doubt=32 given-up=0 reads-of-run-values=283 keys=6 min-ops-per-key=108 faults=4 duration=25.821s
+fault schedule:
+    1.001s inject kill(lincheck-consul-0)
+    5.674s recover kill(lincheck-consul-0)
+    8.674s inject partition(lincheck-consul-1 from lincheck-consul)
+   13.225s recover partition(lincheck-consul-1 from lincheck-consul)
+   16.225s inject kill(lincheck-consul-1)
+   21.003s recover kill(lincheck-consul-1)
+   24.004s inject kill(lincheck-consul-0)
+   25.821s recover kill(lincheck-consul-0)
+verdict: LINEARIZABLE
+key "k5": LINEARIZABLE (108 ops, 12 segments, 0s)
+key "k1": LINEARIZABLE (123 ops, 9 segments, 2ms)
+key "k3": LINEARIZABLE (118 ops, 55 segments, 0s)
+key "k4": LINEARIZABLE (127 ops, 12 segments, 0s)
+key "k2": LINEARIZABLE (123 ops, 32 segments, 1ms)
+key "k0": LINEARIZABLE (121 ops, 10 segments, 0s)
+
+---- schedule 2/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=2
+coverage: ops=720 completed=706 (get=346 put=314) in-doubt=14 given-up=0 reads-of-run-values=289 keys=6 min-ops-per-key=98 faults=3 duration=23.715s
+fault schedule:
+        1s inject partition(lincheck-consul-2 from lincheck-consul)
+    5.676s recover partition(lincheck-consul-2 from lincheck-consul)
+    8.676s inject pause(lincheck-consul-2)
+   13.044s recover pause(lincheck-consul-2)
+   16.044s inject kill(lincheck-consul-1)
+   20.808s recover kill(lincheck-consul-1)
+verdict: LINEARIZABLE
+key "k0": LINEARIZABLE (134 ops, 54 segments, 0s)
+key "k1": LINEARIZABLE (124 ops, 29 segments, 0s)
+key "k2": LINEARIZABLE (98 ops, 54 segments, 1ms)
+key "k4": LINEARIZABLE (120 ops, 10 segments, 0s)
+key "k5": LINEARIZABLE (126 ops, 11 segments, 0s)
+key "k3": LINEARIZABLE (118 ops, 35 segments, 0s)
+
+---- schedule 3/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=3
+coverage: ops=720 completed=695 (get=345 put=321) in-doubt=25 given-up=0 reads-of-run-values=313 keys=6 min-ops-per-key=104 faults=4 duration=29.183s
+fault schedule:
+        1s inject kill(lincheck-consul-0)
+    5.836s recover kill(lincheck-consul-0)
+    8.837s inject partition(lincheck-consul-0 from lincheck-consul)
+   13.458s recover partition(lincheck-consul-0 from lincheck-consul)
+   16.458s inject pause(lincheck-consul-1)
+   20.889s recover pause(lincheck-consul-1)
+    23.89s inject partition(lincheck-consul-1 from lincheck-consul)
+   28.577s recover partition(lincheck-consul-1 from lincheck-consul)
+verdict: LINEARIZABLE
+key "k4": LINEARIZABLE (127 ops, 14 segments, 1ms)
+key "k2": LINEARIZABLE (104 ops, 8 segments, 0s)
+key "k3": LINEARIZABLE (110 ops, 7 segments, 1ms)
+key "k5": LINEARIZABLE (115 ops, 14 segments, 0s)
+key "k0": LINEARIZABLE (120 ops, 13 segments, 0s)
+key "k1": LINEARIZABLE (144 ops, 6 segments, 0s)
+
+---- schedule 4/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=4
+coverage: ops=720 completed=706 (get=375 put=304) in-doubt=14 given-up=0 reads-of-run-values=345 keys=6 min-ops-per-key=103 faults=4 duration=24.329s
+fault schedule:
+        1s inject partition(lincheck-consul-2 from lincheck-consul)
+    5.576s recover partition(lincheck-consul-2 from lincheck-consul)
+    8.577s inject pause(lincheck-consul-1)
+   12.987s recover pause(lincheck-consul-1)
+   15.988s inject pause(lincheck-consul-2)
+   20.347s recover pause(lincheck-consul-2)
+   23.348s inject partition(lincheck-consul-1 from lincheck-consul)
+   24.329s recover partition(lincheck-consul-1 from lincheck-consul)
+verdict: LINEARIZABLE
+key "k4": LINEARIZABLE (103 ops, 14 segments, 0s)
+key "k5": LINEARIZABLE (112 ops, 10 segments, 1ms)
+key "k2": LINEARIZABLE (123 ops, 10 segments, 0s)
+key "k1": LINEARIZABLE (120 ops, 71 segments, 1ms)
+key "k3": LINEARIZABLE (121 ops, 56 segments, 1ms)
+key "k0": LINEARIZABLE (141 ops, 58 segments, 0s)
+
+---- schedule 5/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=5
+coverage: ops=720 completed=664 (get=326 put=310) in-doubt=56 given-up=0 reads-of-run-values=302 keys=6 min-ops-per-key=104 faults=4 duration=26.864s
+fault schedule:
+    1.001s inject kill(lincheck-consul-0)
+    5.704s recover kill(lincheck-consul-0)
+    8.704s inject pause(lincheck-consul-1)
+   13.168s recover pause(lincheck-consul-1)
+   16.169s inject partition(lincheck-consul-1 from lincheck-consul)
+   20.778s recover partition(lincheck-consul-1 from lincheck-consul)
+   23.778s inject pause(lincheck-consul-2)
+   26.864s recover pause(lincheck-consul-2)
+verdict: LINEARIZABLE
+key "k3": LINEARIZABLE (113 ops, 10 segments, 0s)
+key "k1": LINEARIZABLE (137 ops, 12 segments, 0s)
+key "k0": LINEARIZABLE (110 ops, 13 segments, 1ms)
+key "k4": LINEARIZABLE (104 ops, 9 segments, 0s)
+key "k5": LINEARIZABLE (141 ops, 11 segments, 0s)
+key "k2": LINEARIZABLE (115 ops, 8 segments, 0s)
+
+---- schedule 6/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=6
+coverage: ops=720 completed=691 (get=350 put=315) in-doubt=29 given-up=0 reads-of-run-values=322 keys=6 min-ops-per-key=101 faults=4 duration=31.549s
+fault schedule:
+        1s inject kill(lincheck-consul-1)
+    5.823s recover kill(lincheck-consul-1)
+    8.823s inject partition(lincheck-consul-2 from lincheck-consul)
+   13.389s recover partition(lincheck-consul-2 from lincheck-consul)
+    16.39s inject partition(lincheck-consul-1 from lincheck-consul)
+   20.965s recover partition(lincheck-consul-1 from lincheck-consul)
+   23.965s inject partition(lincheck-consul-1 from lincheck-consul)
+    28.59s recover partition(lincheck-consul-1 from lincheck-consul)
+verdict: LINEARIZABLE
+key "k3": LINEARIZABLE (123 ops, 83 segments, 0s)
+key "k5": LINEARIZABLE (127 ops, 17 segments, 1ms)
+key "k4": LINEARIZABLE (133 ops, 10 segments, 0s)
+key "k2": LINEARIZABLE (119 ops, 55 segments, 1ms)
+key "k0": LINEARIZABLE (117 ops, 37 segments, 0s)
+key "k1": LINEARIZABLE (101 ops, 6 segments, 0s)
+
+---- schedule 7/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=7
+coverage: ops=720 completed=701 (get=343 put=331) in-doubt=19 given-up=0 reads-of-run-values=311 keys=6 min-ops-per-key=96 faults=3 duration=21.318s
+fault schedule:
+        1s inject kill(lincheck-consul-0)
+    5.788s recover kill(lincheck-consul-0)
+    8.788s inject pause(lincheck-consul-0)
+   13.175s recover pause(lincheck-consul-0)
+   16.175s inject kill(lincheck-consul-1)
+   21.033s recover kill(lincheck-consul-1)
+verdict: LINEARIZABLE
+key "k3": LINEARIZABLE (130 ops, 14 segments, 1ms)
+key "k2": LINEARIZABLE (118 ops, 14 segments, 0s)
+key "k1": LINEARIZABLE (130 ops, 7 segments, 0s)
+key "k0": LINEARIZABLE (96 ops, 7 segments, 1ms)
+key "k5": LINEARIZABLE (117 ops, 6 segments, 0s)
+key "k4": LINEARIZABLE (129 ops, 32 segments, 0s)
+
+---- schedule 8/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=8
+coverage: ops=720 completed=709 (get=342 put=335) in-doubt=11 given-up=0 reads-of-run-values=299 keys=6 min-ops-per-key=99 faults=4 duration=25.361s
+fault schedule:
+        1s inject pause(lincheck-consul-2)
+    5.372s recover pause(lincheck-consul-2)
+    8.394s inject kill(lincheck-consul-2)
+    13.24s recover kill(lincheck-consul-2)
+    16.24s inject partition(lincheck-consul-0 from lincheck-consul)
+   20.814s recover partition(lincheck-consul-0 from lincheck-consul)
+   23.814s inject pause(lincheck-consul-0)
+   25.361s recover pause(lincheck-consul-0)
+verdict: LINEARIZABLE
+key "k4": LINEARIZABLE (116 ops, 29 segments, 1ms)
+key "k2": LINEARIZABLE (131 ops, 88 segments, 0s)
+key "k0": LINEARIZABLE (99 ops, 57 segments, 1ms)
+key "k5": LINEARIZABLE (131 ops, 126 segments, 0s)
+key "k3": LINEARIZABLE (125 ops, 14 segments, 0s)
+key "k1": LINEARIZABLE (118 ops, 114 segments, 0s)
+
+---- schedule 9/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=9
+coverage: ops=720 completed=694 (get=338 put=325) in-doubt=26 given-up=0 reads-of-run-values=314 keys=6 min-ops-per-key=93 faults=4 duration=28.508s
+fault schedule:
+    1.001s inject partition(lincheck-consul-0 from lincheck-consul)
+    5.634s recover partition(lincheck-consul-0 from lincheck-consul)
+    8.634s inject kill(lincheck-consul-1)
+   13.441s recover kill(lincheck-consul-1)
+   16.441s inject partition(lincheck-consul-0 from lincheck-consul)
+   20.956s recover partition(lincheck-consul-0 from lincheck-consul)
+   23.956s inject kill(lincheck-consul-2)
+   28.508s recover kill(lincheck-consul-2)
+verdict: LINEARIZABLE
+key "k0": LINEARIZABLE (119 ops, 11 segments, 1ms)
+key "k2": LINEARIZABLE (126 ops, 12 segments, 0s)
+key "k4": LINEARIZABLE (108 ops, 108 segments, 0s)
+key "k1": LINEARIZABLE (93 ops, 89 segments, 0s)
+key "k5": LINEARIZABLE (141 ops, 9 segments, 1ms)
+key "k3": LINEARIZABLE (133 ops, 14 segments, 0s)
+
+---- schedule 10/10 ----
+target=Consul 1.20 (3-server cluster, Docker) seed=10
+coverage: ops=720 completed=687 (get=318 put=345) in-doubt=33 given-up=0 reads-of-run-values=295 keys=6 min-ops-per-key=113 faults=3 duration=23.125s
+fault schedule:
+    1.002s inject kill(lincheck-consul-0)
+    5.775s recover kill(lincheck-consul-0)
+    8.775s inject partition(lincheck-consul-2 from lincheck-consul)
+   13.358s recover partition(lincheck-consul-2 from lincheck-consul)
+   16.359s inject kill(lincheck-consul-0)
+   21.071s recover kill(lincheck-consul-0)
+verdict: LINEARIZABLE
+key "k4": LINEARIZABLE (113 ops, 11 segments, 1ms)
+key "k0": LINEARIZABLE (128 ops, 11 segments, 0s)
+key "k5": LINEARIZABLE (123 ops, 13 segments, 0s)
+key "k3": LINEARIZABLE (119 ops, 6 segments, 1ms)
+key "k2": LINEARIZABLE (115 ops, 12 segments, 0s)
+key "k1": LINEARIZABLE (122 ops, 9 segments, 0s)
+
+==== totals over 10 schedules ====
+operations recorded: 7200, completed: 6941, in doubt: 259, faults injected: 37
+result: no linearizability violation found
