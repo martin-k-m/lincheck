@@ -126,7 +126,7 @@ search budget exhausted). Inconclusive does not share an exit code with clean.
 - [RESULTS-redis.md](RESULTS-redis.md) — violations found, exactly as Redis
   documents. This target exists to prove the checker detects, not to report a
   discovery.
-- [RESULTS-hosted-service.md](RESULTS-hosted-service.md) — not run, and why.
+- [RESULTS-hosted-service.md](RESULTS-hosted-service.md), not run, and why.
 
 Finding nothing against etcd and Consul is the expected outcome. Both are mature
 systems whose documented guarantee is the one being checked, and a clean result
