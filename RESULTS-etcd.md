@@ -102,7 +102,7 @@ Schedule 1 (seed 1) as an example of what one actually looked like:
 | Abandoned without being submitted | 0 |
 | Faults injected, total | 34 (13 kill, 13 partition, 8 pause) |
 | Keys | 6 |
-| Schedule wall-clock | 23 to 26s each |
+| Schedule wall-clock | 22.785s to 27.171s each |
 | Verdicts | 10 LINEARIZABLE, 0 VIOLATION, 0 UNKNOWN, 0 harness failures |
 
 Coverage for schedule 1, as an example of the floor being cleared with room:

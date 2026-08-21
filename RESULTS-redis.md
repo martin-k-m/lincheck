@@ -90,11 +90,16 @@ harness problem rather than a Redis result:
    the failover completes at about 3.2s, so almost no read ever landed on the
    promoted replica. Ten schedules: LINEARIZABLE. Raising to 400 operations per
    client extends each schedule to about 7.8s and gives roughly 4.5s of
-   post-failover traffic, which is when the evidence appears.
+   post-failover traffic, which is when the evidence appears. The committed run
+   came out at 7.936s to 8.808s per schedule.
 
 Each of those is a case of the harness testing less than it claimed. None of
 them was reported as a pass in this document, and the reason they were caught is
 that a clean result against Redis was known in advance to be wrong.
+
+The logs for those three discarded runs were not kept, so the counts in this
+section are from my notes at the time and are not reproducible from anything in
+`runs/`. Only the final run below is.
 
 ## Counts
 
@@ -109,7 +114,7 @@ that a clean result against Redis was known in advance to be wrong.
 | Abandoned without being submitted | 0 |
 | Faults injected, total | 10 (one failover per schedule) |
 | Keys | 4 |
-| Schedule wall-clock | about 7.8s each |
+| Schedule wall-clock | 7.936s to 8.808s each |
 | Verdicts | 10 of 10 schedules VIOLATION; 26 of 40 per-key checks VIOLATION |
 | UNKNOWN verdicts, harness failures | 0 |
 
