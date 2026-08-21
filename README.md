@@ -45,7 +45,8 @@ leaderless window. Both are addressed structurally:
 The coverage floor is not decorative. The first real etcd run failed it: all 60
 operations completed in 87ms, before the first fault was injected. Without the
 floor that run would have reported a clean pass against a cluster that was never
-disturbed.
+disturbed. That run's log was not kept, so those two numbers are from my notes
+and are not reproducible from `runs/`.
 
 ## The adapter interface
 
@@ -104,6 +105,10 @@ fault schedule that cannot be written down cannot be reproduced.
 
 ## Running it
 
+`go test ./...` needs nothing but Go. Every target below needs a running Docker
+daemon and pulls its own image on first use, because the adapters create and
+destroy real containers.
+
 ```
 go test ./...                                   # the checker's own regression suite
 go run ./cmd/lincheck -target etcd -schedules 10
@@ -121,6 +126,7 @@ search budget exhausted). Inconclusive does not share an exit code with clean.
 - [RESULTS-redis.md](RESULTS-redis.md) — violations found, exactly as Redis
   documents. This target exists to prove the checker detects, not to report a
   discovery.
+- [RESULTS-hosted-service.md](RESULTS-hosted-service.md) — not run, and why.
 
 Finding nothing against etcd and Consul is the expected outcome. Both are mature
 systems whose documented guarantee is the one being checked, and a clean result
@@ -136,3 +142,7 @@ linearizability checks; that is the right shape, and it is not what this is.
 
 Nothing in this repository has been sent anywhere. No issue was filed, no
 maintainer contacted, nothing pushed.
+
+## Licence
+
+MIT.

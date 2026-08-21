@@ -97,7 +97,7 @@ Schedule 1 (seed 1):
 | Abandoned without being submitted | 0 |
 | Faults injected, total | 37 (14 kill, 14 partition, 9 pause) |
 | Keys | 6 |
-| Schedule wall-clock | 25 to 32s each |
+| Schedule wall-clock | 21.318s to 31.549s each |
 | Verdicts | 10 LINEARIZABLE, 0 VIOLATION, 0 UNKNOWN, 0 harness failures |
 
 Coverage for schedule 1:

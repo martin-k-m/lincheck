@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      # The regression suite is what the README's two soundness rules rest on:
+      # the in-doubt tests and the reference-store tests both live here, and
+      # neither needs Docker. The target runs do need Docker and are not run
+      # on push, because they take minutes and create real containers.
+      - name: Test
+        run: go test ./... -count=1
